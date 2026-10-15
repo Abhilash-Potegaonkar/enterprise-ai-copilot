@@ -1,15 +1,21 @@
 import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import { authConfig } from "@/lib/auth/auth.config";
+import { getDashboardLoginRedirect } from "@/lib/auth/dashboard-protection";
 
 const { auth } = NextAuth(authConfig);
 
 export const proxy = auth((request) => {
-  if (request.auth?.user.id) {
+  const loginRedirect = getDashboardLoginRedirect(
+    Boolean(request.auth?.user.id),
+    request.nextUrl,
+  );
+
+  if (!loginRedirect) {
     return NextResponse.next();
   }
 
-  return NextResponse.redirect(new URL("/login", request.nextUrl));
+  return NextResponse.redirect(loginRedirect);
 });
 
 export const config = {

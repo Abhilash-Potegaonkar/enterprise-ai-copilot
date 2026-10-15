@@ -3,22 +3,22 @@
 import { AuthError } from "next-auth";
 import { signIn, signOut } from "../../../auth";
 import type { LoginActionState } from "@/lib/auth/types";
+import { parseLoginFormData } from "@/lib/auth/login-input";
 
 export async function loginAction(
   _previousState: LoginActionState,
   formData: FormData,
 ): Promise<LoginActionState> {
-  const email = formData.get("email");
-  const password = formData.get("password");
+  const credentials = parseLoginFormData(formData);
 
-  if (typeof email !== "string" || typeof password !== "string") {
+  if (!credentials) {
     return { error: "Enter a valid email address and password." };
   }
 
   try {
     await signIn("credentials", {
-      email,
-      password,
+      email: credentials.email,
+      password: credentials.password,
       redirectTo: "/dashboard",
     });
   } catch (error) {

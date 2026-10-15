@@ -27,7 +27,7 @@ interface NavigationItem {
 
 const navigationItems: NavigationItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard", active: true },
-  { label: "People", icon: Users },
+  { label: "People", icon: Users, href: "/dashboard/employees" },
   { label: "Attendance", icon: Activity },
   { label: "Time off", icon: CalendarDays },
   { label: "Documents", icon: Files },
