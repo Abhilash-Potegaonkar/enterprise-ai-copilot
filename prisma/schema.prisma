@@ -130,10 +130,12 @@ model Message {
   author         User?          @relation("MessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
   role           MessageRole
   content        String         @db.Text
+  clientRequestId String?       @db.VarChar(64)
   createdAt      DateTime       @default(now())
 
   @@index([conversationId, createdAt])
   @@index([authorId])
+  @@unique([conversationId, clientRequestId, role])
 }
 
 model Document {

@@ -19,16 +19,49 @@ npm run dev
 
 Open http://localhost:3000. Keep `.env` local and do not commit it. The Compose service binds PostgreSQL only to localhost and stores its data in a named volume. Existing databases need a Prisma migration for the `HR` role.
 
-Run checks with `npm test`, `npm run lint`, and `npm run typecheck`.
+Run checks with `npm test`, `npm run lint`, `npm run typecheck`, and `npx prisma validate`.
+
+### Local AI chat
+
+The protected `/dashboard/chat` page uses the Ollama chat API from the server. It
+does not require a paid API key. Set `OLLAMA_BASE_URL` (loopback only) and
+`OLLAMA_MODEL` in `.env`; defaults are `http://127.0.0.1:11434` and
+`llama3.2:1b`. Conversations and messages are stored in PostgreSQL and scoped
+to the signed-in user. Streaming responses and retry IDs prevent duplicate
+persisted turns. Ordinary automated tests use a mocked provider and do not
+require Ollama. For an existing database, apply pending migrations with
+`npx prisma migrate deploy` and regenerate the client with `npm run db:generate`.
+
+On Windows, install Ollama from PowerShell:
+
+```powershell
+irm https://ollama.com/install.ps1 | iex
+```
+
+Open a new PowerShell window and download the recommended model:
+
+```powershell
+ollama pull llama3.2:1b
+```
+
+The Windows installer runs Ollama in the background. Verify it with
+`Invoke-RestMethod http://127.0.0.1:11434/api/tags`. If Ollama is not already
+running, start it with `ollama serve`. Set `OLLAMA_BASE_URL` and `OLLAMA_MODEL`
+in `.env`, then run `npm run dev`. This starter defaults to the 1B model because
+the assessed computer has about 7.9 GiB of RAM and no GPU details were available.
+If the computer has sufficient free memory and the smaller model is not capable
+enough, you can try `llama3.2:3b` by changing `OLLAMA_MODEL`.
 
 ## Structure
 
 - `src/app`: root redirect, login, protected dashboard, unauthorized page, server actions, and API handlers.
 - `src/components/auth`: credentials login form.
+- `src/components/chat`: protected local AI chat interface.
 - `src/components/layout`: shared navigation and dashboard shell.
 - `src/components/ui`: reusable UI primitives following shadcn conventions.
 - `src/lib/auth`: typed session contracts, bcrypt password hashing, and server-side authorization guards.
 - `src/lib/employees`: server-only employee directory queries and role-scoped DTOs.
+- `src/lib/chat`: authenticated chat API logic, Ollama provider, and stream decoder.
 - `src/lib/db`: Prisma client singleton.
 - `src/types`: shared application types and Auth.js module augmentation.
 - `auth.ts`: Auth.js credentials provider, JWT callbacks, and session configuration.

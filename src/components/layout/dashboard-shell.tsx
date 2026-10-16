@@ -1,76 +1,19 @@
 import Link from "next/link";
 import {
-  Activity,
-  CalendarDays,
-  Files,
-  LayoutDashboard,
   LogOut,
   Settings2,
-  Users,
-  type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { logoutAction } from "@/app/actions/auth-actions";
+import {
+  DashboardBreadcrumb,
+  DashboardNavigation,
+} from "@/components/layout/dashboard-navigation";
 import type { SessionUser } from "@/lib/auth/types";
 
 interface DashboardShellProps {
   children: ReactNode;
   user: SessionUser;
-}
-
-interface NavigationItem {
-  label: string;
-  icon: LucideIcon;
-  href?: string;
-  active?: boolean;
-}
-
-const navigationItems: NavigationItem[] = [
-  { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard", active: true },
-  { label: "People", icon: Users, href: "/dashboard/employees" },
-  { label: "Attendance", icon: Activity },
-  { label: "Time off", icon: CalendarDays },
-  { label: "Documents", icon: Files },
-];
-
-function NavigationLinks() {
-  return (
-    <>
-      {navigationItems.map(({ active, href, icon: Icon, label }) => {
-        const className = `flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors ${
-          active
-            ? "bg-[#2c4d40] font-medium text-white"
-            : "text-[#c1cec7] hover:bg-[#263c33] hover:text-white"
-        }`;
-
-        if (!href) {
-          return (
-            <span
-              aria-disabled="true"
-              className={`${className} cursor-not-allowed opacity-70`}
-              key={label}
-              title="Not available in this foundation"
-            >
-              <Icon aria-hidden="true" size={17} />
-              {label}
-            </span>
-          );
-        }
-
-        return (
-          <Link
-            aria-current={active ? "page" : undefined}
-            className={className}
-            href={href}
-            key={label}
-          >
-            <Icon aria-hidden="true" size={17} />
-            {label}
-          </Link>
-        );
-      })}
-    </>
-  );
 }
 
 export function DashboardShell({ children, user }: DashboardShellProps) {
@@ -91,7 +34,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
           Workspace
         </div>
         <nav aria-label="Primary navigation" className="mt-3 flex flex-col gap-1">
-          <NavigationLinks />
+          <DashboardNavigation />
         </nav>
 
         <div className="mt-auto border-t border-white/10 pt-4">
@@ -120,7 +63,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
           <div className="hidden items-center gap-2 text-sm text-muted md:flex">
             <span>Workspace</span>
             <span aria-hidden="true" className="text-line">/</span>
-            <span className="font-medium text-foreground">Overview</span>
+            <DashboardBreadcrumb />
           </div>
           <div className="flex items-center gap-3 sm:gap-4">
             <span className="hidden rounded-sm bg-[#e8efeb] px-2 py-1 text-[11px] font-medium text-green sm:inline">
@@ -159,28 +102,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
         </header>
 
         <nav aria-label="Mobile navigation" className="flex gap-1 overflow-x-auto border-b border-line bg-surface px-3 py-2 md:hidden">
-          {navigationItems.map(({ active, href, icon: Icon, label }) =>
-            href ? (
-              <Link
-                aria-current={active ? "page" : undefined}
-                className="flex shrink-0 items-center gap-2 rounded-md bg-[#e8efeb] px-3 py-2 text-xs font-medium text-green"
-                href={href}
-                key={label}
-              >
-                <Icon aria-hidden="true" size={15} />
-                {label}
-              </Link>
-            ) : (
-              <span
-                aria-disabled="true"
-                className="flex shrink-0 items-center gap-2 px-3 py-2 text-xs text-muted"
-                key={label}
-              >
-                <Icon aria-hidden="true" size={15} />
-                {label}
-              </span>
-            ),
-          )}
+          <DashboardNavigation mobile />
         </nav>
 
         <main className="w-full flex-1 px-4 py-8 sm:px-7 sm:py-10">
