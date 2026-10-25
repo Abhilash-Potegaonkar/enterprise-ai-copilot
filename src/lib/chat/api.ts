@@ -1,3 +1,6 @@
+import type { UserRole } from "@/types";
+import { RagServiceError } from "@/lib/rag/core";
+
 export const MAX_CHAT_MESSAGE_LENGTH = 4_000;
 export const MAX_CHAT_REQUEST_BYTES = 16_384;
 export const MAX_CHAT_RESPONSE_LENGTH = 24_000;
@@ -7,6 +10,7 @@ const MAX_CONTEXT_MESSAGES = 20;
 export interface ChatSession {
   user?: {
     id?: string | null;
+    role?: UserRole | null;
   } | null;
 }
 
@@ -61,7 +65,7 @@ export interface ChatRepository {
 }
 
 export interface ProviderMessage {
-  role: "user" | "assistant";
+  role: "system" | "user" | "assistant";
   content: string;
 }
 
@@ -78,6 +82,11 @@ export interface ChatApiDependencies {
   repository: ChatRepository;
   provider: ChatProvider;
   rateLimiter: UserRateLimiter;
+  retrieveContext?(
+    userId: string,
+    role: UserRole | undefined,
+    query: string,
+  ): Promise<string | null>;
 }
 
 export class ChatProviderError extends Error {
@@ -276,6 +285,7 @@ function guarded(
     request: Request,
     userId: string,
     conversationId?: string,
+    role?: UserRole,
   ) => Promise<Response>,
   getSession: ChatApiDependencies["getSession"],
 ): (request: Request, conversationId?: string) => Promise<Response> {
@@ -288,7 +298,12 @@ function guarded(
         return jsonError("Authentication required.", 401);
       }
 
-      return await handler(request, userId, conversationId);
+      return await handler(
+        request,
+        userId,
+        conversationId,
+        session?.user?.role ?? undefined,
+      );
     } catch (error) {
       reportServerFailure(error instanceof Error ? error : new Error("Unknown failure"));
       return jsonError("The chat service is temporarily unavailable.", 500);
@@ -297,7 +312,13 @@ function guarded(
 }
 
 export function createChatApi(dependencies: ChatApiDependencies) {
-  const { getSession, provider, rateLimiter, repository } = dependencies;
+  const {
+    getSession,
+    provider,
+    rateLimiter,
+    repository,
+    retrieveContext,
+  } = dependencies;
 
   const listConversations = guarded(async (request, userId) => {
     if (new URL(request.url).searchParams.size > 0) {
@@ -385,7 +406,7 @@ export function createChatApi(dependencies: ChatApiDependencies) {
   }, getSession);
 
   const activeRequests = new Set<string>();
-  const sendMessage = guarded(async (request, userId, conversationId) => {
+  const sendMessage = guarded(async (request, userId, conversationId, role) => {
     if (!conversationId) {
       return jsonError("Conversation ID is required.", 400);
     }
@@ -450,12 +471,26 @@ export function createChatApi(dependencies: ChatApiDependencies) {
         if (!conversation) {
           return jsonError("Conversation not found.", 404);
         }
-        const context = conversation.messages
+        const context: ProviderMessage[] = conversation.messages
           .slice(-MAX_CONTEXT_MESSAGES)
           .map((message) => ({
             role: message.role === "USER" ? "user" as const : "assistant" as const,
             content: message.content,
           }));
+
+        if (retrieveContext) {
+          try {
+            const documentContext = await retrieveContext(userId, role, content);
+            if (documentContext) {
+              context.unshift({ role: "system", content: documentContext });
+            }
+          } catch (error) {
+            if (error instanceof RagServiceError) {
+              return jsonError(error.message, error.status);
+            }
+            throw error;
+          }
+        }
 
         try {
           providerStream = await provider.openChatStream(context);

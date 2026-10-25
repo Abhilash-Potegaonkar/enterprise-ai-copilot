@@ -8,6 +8,7 @@ import {
   type ChatMessageRecord,
 } from "./api";
 import { createOllamaProvider } from "./ollama-provider";
+import { getChatDocumentContext } from "@/lib/rag/server";
 
 function toChatMessage(message: {
   id: string;
@@ -259,4 +260,5 @@ export const chatApi = createChatApi({
   repository: chatRepository,
   provider: createOllamaProvider(),
   rateLimiter: createUserRateLimiter(),
+  retrieveContext: getChatDocumentContext,
 });

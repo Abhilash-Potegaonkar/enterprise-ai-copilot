@@ -52,6 +52,37 @@ the assessed computer has about 7.9 GiB of RAM and no GPU details were available
 If the computer has sufficient free memory and the smaller model is not capable
 enough, you can try `llama3.2:3b` by changing `OLLAMA_MODEL`.
 
+### Local document retrieval
+
+The authenticated `POST /api/documents` endpoint ingests plain text sent as JSON:
+
+```json
+{
+  "name": "Leave policy",
+  "content": "Employees can request annual leave through the HR portal.",
+  "departmentId": null
+}
+```
+
+The request is limited to 100 KB of text. HR and ADMIN can ingest documents;
+HR may optionally assign a department. `departmentId: null` makes a document
+general. Employees can retrieve general documents, managers can retrieve
+general and their department's documents, and HR/ADMIN can retrieve all
+documents. Retrieved excerpts are added to chat context but are not persisted
+in chat history.
+
+Set `OLLAMA_EMBEDDING_MODEL` to an installed local embedding model (the example
+uses `nomic-embed-text`). Install it with `ollama pull nomic-embed-text` or
+choose another installed embedding model. The server checks `/api/tags` before
+embedding; a missing Ollama service/model returns an actionable error. Document
+chunks and embeddings are stored in PostgreSQL, so apply the new migration and
+regenerate Prisma Client before use:
+
+```powershell
+npx prisma migrate deploy
+npm run db:generate
+```
+
 ## Structure
 
 - `src/app`: root redirect, login, protected dashboard, unauthorized page, server actions, and API handlers.
@@ -62,6 +93,7 @@ enough, you can try `llama3.2:3b` by changing `OLLAMA_MODEL`.
 - `src/lib/auth`: typed session contracts, bcrypt password hashing, and server-side authorization guards.
 - `src/lib/employees`: server-only employee directory queries and role-scoped DTOs.
 - `src/lib/chat`: authenticated chat API logic, Ollama provider, and stream decoder.
+- `src/lib/rag`: plain-text chunking, local embeddings, and access-scoped retrieval.
 - `src/lib/db`: Prisma client singleton.
 - `src/types`: shared application types and Auth.js module augmentation.
 - `auth.ts`: Auth.js credentials provider, JWT callbacks, and session configuration.
@@ -74,7 +106,7 @@ enough, you can try `llama3.2:3b` by changing `OLLAMA_MODEL`.
 - An `Employee` belongs to a department, optionally links to one `User`, and owns attendance and leave records.
 - `Attendance` is unique per employee and work date. `Leave` may also reference a reviewing user.
 - A `User` owns conversations, may author messages, uploads documents, and may review leave requests.
-- A `Conversation` contains ordered `Message` records. Documents store metadata and storage keys; file bytes remain outside PostgreSQL.
+- A `Conversation` contains ordered `Message` records. Plain-text document chunks and their local embeddings are stored with document metadata in PostgreSQL.
 
 ## Authentication and authorization
 

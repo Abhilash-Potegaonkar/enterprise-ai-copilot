@@ -13,6 +13,7 @@ import {
 } from "@/lib/chat/api";
 import { createOllamaProvider } from "@/lib/chat/ollama-provider";
 import { consumeChatEventStream } from "@/lib/chat/streaming";
+import type { UserRole } from "@/types";
 
 const requestId = "1f4d7a11-87e4-4b7f-9c80-6f1f3d40844a";
 
@@ -182,16 +183,26 @@ function createFixture(
   options: {
     userId?: string | null;
     provider?: ChatProvider;
+    role?: UserRole;
+    retrieveContext?: (
+      userId: string,
+      role: UserRole | undefined,
+      query: string,
+    ) => Promise<string | null>;
   } = {},
 ) {
   const repository = new MemoryChatRepository();
   let userId = options.userId === undefined ? "user-a" : options.userId;
   const providerCalls: string[][] = [];
+  const providerMessages: { role: string; content: string }[][] = [];
   const provider =
     options.provider ??
     ({
       async openChatStream(messages) {
         providerCalls.push(messages.map((message) => message.content));
+        providerMessages.push(
+          messages.map(({ role, content }) => ({ role, content })),
+        );
         return (async function* () {
           yield "A mocked ";
           yield "answer.";
@@ -200,17 +211,21 @@ function createFixture(
     } satisfies ChatProvider);
   const api = createChatApi({
     async getSession(): Promise<ChatSession | null> {
-      return userId ? { user: { id: userId } } : null;
+      return userId
+        ? { user: { id: userId, role: options.role ?? "EMPLOYEE" } }
+        : null;
     },
     repository,
     provider,
     rateLimiter: createUserRateLimiter(),
+    retrieveContext: options.retrieveContext,
   });
 
   return {
     api,
     repository,
     providerCalls,
+    providerMessages,
     setUserId(value: string | null) {
       userId = value;
     },
@@ -316,6 +331,47 @@ describe("secure chat API", () => {
         ["USER", "Give me a short greeting."],
         ["ASSISTANT", "A mocked answer."],
       ],
+    );
+  });
+
+  it("adds authorized document context without persisting it into chat history", async () => {
+    const fixture = createFixture({
+      role: "EMPLOYEE",
+      async retrieveContext(userId, role, query) {
+        assert.deepEqual([userId, role, query], [
+          "user-a",
+          "EMPLOYEE",
+          "What is the leave policy?",
+        ]);
+        return "[Document: Leave policy; chunk 1]\nEmployees receive annual leave.";
+      },
+    });
+    const created = await fixture.api.createConversation(
+      new Request("http://localhost/api/chat/conversations", { method: "POST" }),
+    );
+    const { conversation } = (await created.json()) as {
+      conversation: ChatConversationSummary;
+    };
+    const response = await fixture.api.sendMessage(
+      makeJsonRequest(
+        `http://localhost/api/chat/conversations/${conversation.id}/messages`,
+        "POST",
+        JSON.stringify({ message: "What is the leave policy?", requestId }),
+      ),
+      conversation.id,
+    );
+
+    assert.equal(response.status, 200);
+    await response.text();
+    assert.equal(fixture.providerMessages[0]?.[0]?.role, "system");
+    assert.match(
+      fixture.providerMessages[0]?.[0]?.content ?? "",
+      /Employees receive annual leave/,
+    );
+    assert.deepEqual(
+      (await fixture.repository.getConversation("user-a", conversation.id))
+        ?.messages.map((message) => message.content),
+      ["What is the leave policy?", "A mocked answer."],
     );
   });
 

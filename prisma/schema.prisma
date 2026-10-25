@@ -148,9 +148,24 @@ model Document {
   department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   uploadedById String
   uploadedBy   User        @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  chunks       DocumentChunk[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
   @@index([departmentId])
   @@index([uploadedById])
+}
+
+model DocumentChunk {
+  id             String   @id @default(cuid())
+  documentId     String
+  document       Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunkIndex     Int
+  content        String   @db.Text
+  embeddingModel String
+  embedding      Json     @db.JsonB
+  createdAt      DateTime @default(now())
+
+  @@unique([documentId, chunkIndex])
+  @@index([embeddingModel])
 }
